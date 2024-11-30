@@ -150,11 +150,9 @@ embeddings
 """
 
 # Set the PINECONE_API_KEY as an environment variable
-pinecone_api_key = userdata.get("PINECONE_API_KEY")
-os.environ['PINECONE_API_KEY'] = pinecone_api_key
-
+pinecone_api_key = os.getenv("PINECONE_API_KEY")
 # Initialize Pinecone
-pc = Pinecone(api_key=userdata.get("PINECONE_API_KEY"),)
+pc = Pinecone(api_key=pinecone_api_key,)
 
 # Connect to your Pinecone index
 pinecone_index = pc.Index("codebase-rag")
@@ -190,10 +188,10 @@ vectorstore = PineconeVectorStore.from_documents(
 ![Screenshot 2024-11-25 at 12 00 16 AM](https://github.com/user-attachments/assets/e5525d29-bca6-4dbd-892b-cc770a6b281d)
 
 """
-
+groq_api = os.getenv("GROQ_API_KEY")
 client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
-    api_key=userdata.get("GROQ_API_KEY")
+    api_key=groq_api
 )
 
 query = "How are python files parsed?"
