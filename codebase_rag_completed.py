@@ -9,23 +9,8 @@ Original file is located at
 # Install Necessary Libraries
 """
 
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
-from langchain_pinecone import PineconeVectorStore
-from langchain.embeddings import OpenAIEmbeddings
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from pinecone import Pinecone
-import os
-from dotenv import load_dotenv
-import tempfile
-from github import Github, Repository
-from git import Repo
-from openai import OpenAI
-from pathlib import Path
-from langchain.schema import Document
-from pinecone import Pinecone
 
-load_dotenv()
+
 
 """# Clone a GitHub Repo locally"""
 from sentence_transformers import SentenceTransformer
