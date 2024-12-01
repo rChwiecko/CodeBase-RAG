@@ -28,128 +28,66 @@ from pinecone import Pinecone
 load_dotenv()
 
 """# Clone a GitHub Repo locally"""
+from sentence_transformers import SentenceTransformer
+from langchain_pinecone import PineconeVectorStore
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain.schema import Document
+from dotenv import load_dotenv
+from git import Repo
+import os
+from pinecone import Pinecone
+from openai import OpenAI
 
-def clone_repository(repo_url):
-    """Clones a GitHub repository to a temporary directory.
+# Load environment variables
+load_dotenv()
 
-    Args:
-        repo_url: The URL of the GitHub repository.
-
-    Returns:
-        The path to the cloned repository.
-    """
-    repo_name = repo_url.split("/")[-1]  # Extract repository name from URL
-    repo_path = f"/content/{repo_name}"
-    Repo.clone_from(repo_url, str(repo_path))
-    return str(repo_path)
-
-path = clone_repository("https://github.com/CoderAgent/SecureAgent")
-
-print(path)
-
+# Supported file extensions and ignored directories
 SUPPORTED_EXTENSIONS = {'.py', '.js', '.tsx', '.jsx', '.ipynb', '.java',
-                         '.cpp', '.ts', '.go', '.rs', '.vue', '.swift', '.c', '.h'}
-
+                        '.cpp', '.ts', '.go', '.rs', '.vue', '.swift', '.c', '.h'}
 IGNORED_DIRS = {'node_modules', 'venv', 'env', 'dist', 'build', '.git',
                 '__pycache__', '.next', '.vscode', 'vendor'}
 
-def get_file_content(file_path, repo_path):
-    """
-    Get content of a single file.
+# Initialize Pinecone
+# pinecone_api_key = os.getenv("PINECONE_API_KEY")
+# pinecone_index_name = "codebase-rag"
+# pinecone_client = Pinecone(api_key=pinecone_api_key)
+# pinecone_index = pinecone_client.Index(pinecone_index_name)
 
-    Args:
-        file_path (str): Path to the file
-
-    Returns:
-        Optional[Dict[str, str]]: Dictionary with file name and content
-    """
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        # Get relative path from repo root
-        rel_path = os.path.relpath(file_path, repo_path)
-
-        return {
-            "name": rel_path,
-            "content": content
-        }
-    except Exception as e:
-        print(f"Error processing file {file_path}: {str(e)}")
-        return None
-
-
-def get_main_files_content(repo_path: str):
-    """
-    Get content of supported code files from the local repository.
-
-    Args:
-        repo_path: Path to the local repository
-
-    Returns:
-        List of dictionaries containing file names and contents
-    """
-    files_content = []
-
-    try:
-        for root, _, files in os.walk(repo_path):
-            # Skip if current directory is in ignored directories
-            if any(ignored_dir in root for ignored_dir in IGNORED_DIRS):
-                continue
-
-            # Process each file in current directory
-            for file in files:
-                file_path = os.path.join(root, file)
-                if os.path.splitext(file)[1] in SUPPORTED_EXTENSIONS:
-                    file_content = get_file_content(file_path, repo_path)
-                    if file_content:
-                        files_content.append(file_content)
-
-    except Exception as e:
-        print(f"Error reading repository: {str(e)}")
-
-    return files_content
-
-file_content = get_main_files_content(path)
-
-file_content
-
-"""# Embeddings"""
 
 def get_huggingface_embeddings(text, model_name="sentence-transformers/all-mpnet-base-v2"):
+    """Generates embeddings using a HuggingFace model."""
     model = SentenceTransformer(model_name)
     return model.encode(text)
 
-text = "I am a programmer"
 
-embeddings = get_huggingface_embeddings(text)
+def clone_repository(repo_url):
+    """Clones a GitHub repository to the local 'content' directory."""
+    repo_name = repo_url.split("/")[-1]
+    repo_path = f"./content/{repo_name}"
 
-embeddings
+    # Skip cloning if the repo already exists
+    if os.path.exists(repo_path):
+        print(f"Repository already exists at: {repo_path}")
+        return repo_path
 
-
-
-"""# Setting up Pinecone
-**1. Create an account on [Pinecone.io](https://app.pinecone.io/)**
-
-**2. Create a new index called "codebase-rag" and set the dimensions to 768. Leave the rest of the settings as they are.**
-
-![Screenshot 2024-11-24 at 10 58 50 PM](https://github.com/user-attachments/assets/f5fda046-4087-432a-a8c2-86e061005238)
-
-
-
-**3. Create an API Key for Pinecone**
-
-![Screenshot 2024-11-24 at 10 44 37 PM](https://github.com/user-attachments/assets/e7feacc6-2bd1-472a-82e5-659f65624a88)
+    print(f"Cloning repository from {repo_url} to {repo_path}...")
+    Repo.clone_from(repo_url, repo_path)
+    print(f"Cloned repository to: {repo_path}")
+    return repo_path
 
 
-**4. Store your Pinecone API Key within Google Colab's secrets section, and then enable access to it (see the blue checkmark)**
+def get_file_content(file_path, repo_path):
+    """Reads and returns the content of a single file."""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        rel_path = os.path.relpath(file_path, repo_path)
+        return {"name": rel_path, "content": content}
+    except Exception as e:
+        print(f"Error reading file {file_path}: {e}")
+        return None
 
-![Screenshot 2024-11-24 at 10 45 25 PM](https://github.com/user-attachments/assets/eaf73083-0b5f-4d17-9e0c-eab84f91b0bc)
 
-
-"""
-
-# Set the PINECONE_API_KEY as an environment variable
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 # Initialize Pinecone
 pc = Pinecone(api_key=pinecone_api_key,)
@@ -157,82 +95,65 @@ pc = Pinecone(api_key=pinecone_api_key,)
 # Connect to your Pinecone index
 pinecone_index = pc.Index("codebase-rag")
 
-vectorstore = PineconeVectorStore(index_name="codebase-rag", embedding=HuggingFaceEmbeddings())
 
-documents = []
 
-for file in file_content:
-    doc = Document(
-        page_content=f"{file['name']}\n{file['content']}",
-        metadata={"source": file['name']}
+def get_main_files_content(repo_path):
+    """Gets the content of supported files from the given repository."""
+    files_content = []
+
+    for root, _, files in os.walk(repo_path):
+        # Skip ignored directories
+        if any(ignored_dir in root for ignored_dir in IGNORED_DIRS):
+            continue
+
+        for file in files:
+            file_path = os.path.join(root, file)
+            if os.path.splitext(file)[1] in SUPPORTED_EXTENSIONS:
+                file_content = get_file_content(file_path, repo_path)
+                if file_content:
+                    files_content.append(file_content)
+    return files_content
+
+
+def add_repo_to_pinecone(repo_url):
+    """Adds a GitHub repository to Pinecone and local content directory."""
+    # Clone the repository
+    repo_path = clone_repository(repo_url)
+    repo_namespace = repo_url  # Using the repo URL as the namespace in Pinecone
+
+    # Get the files' content from the repository
+    files_content = get_main_files_content(repo_path)
+    if not files_content:
+        print(f"No valid files found in repository: {repo_url}")
+        return
+
+    # Prepare documents for Pinecone
+    documents = []
+    for file in files_content:
+        doc = Document(
+            page_content=f"{file['name']}\n{file['content']}",
+            metadata={"source": file['name']}
+        )
+
+        documents.append(doc)
+    pinecone_index = pc.Index("codebase-rag")
+    # Add documents to Pinecone
+    vectorstore = PineconeVectorStore(
+        index_name="codebase-rag",
+        embedding=HuggingFaceEmbeddings()
     )
-
-    documents.append(doc)
-
-
-vectorstore = PineconeVectorStore.from_documents(
-    documents=documents,
-    embedding=HuggingFaceEmbeddings(),
-    index_name="codebase-rag",
-    namespace="https://github.com/CoderAgent/SecureAgent"
-)
+    vectorstore.from_documents(documents=documents, embedding=HuggingFaceEmbeddings(), index_name='codebase-rag', namespace=repo_namespace)
+    print(f"Repository added to Pinecone under namespace: {repo_namespace}")
+    return repo_namespace
 
 
+"""# Putting it all together"""
 
-"""# Perform RAG
-
-1. Get your Groq API Key [here](https://console.groq.com/keys)
-
-2. Paste your Groq API Key into your Google Colab secrets, and make sure to enable permissions for it
-
-![Screenshot 2024-11-25 at 12 00 16 AM](https://github.com/user-attachments/assets/e5525d29-bca6-4dbd-892b-cc770a6b281d)
-
-"""
 groq_api = os.getenv("GROQ_API_KEY")
 client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
     api_key=groq_api
 )
-
-query = "How are python files parsed?"
-
-raw_query_embedding = get_huggingface_embeddings(query)
-
-raw_query_embedding
-
-# Feel free to change the "top_k" parameter to be a higher or lower number
-top_matches = pinecone_index.query(vector=raw_query_embedding.tolist(), top_k=5, include_metadata=True, namespace="https://github.com/CoderAgent/SecureAgent")
-
-top_matches
-
-contexts = [item['metadata']['text'] for item in top_matches['matches']]
-
-contexts
-
-augmented_query = "<CONTEXT>\n" + "\n\n-------\n\n".join(contexts[ : 10]) + "\n-------\n</CONTEXT>\n\n\n\nMY QUESTION:\n" + query
-
-print(augmented_query)
-
-system_prompt = f"""You are a Senior Software Engineer, specializing in TypeScript.
-
-Answer any questions I have about the codebase, based on the code provided. Always consider all of the context provided when forming a response.
-"""
-
-llm_response = client.chat.completions.create(
-    model="llama-3.1-70b-versatile",
-    messages=[
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": augmented_query}
-    ]
-)
-
-response = llm_response.choices[0].message.content
-
-response
-
-
-
-"""# Putting it all together"""
 
 def perform_rag(query):
     raw_query_embedding = get_huggingface_embeddings(query)
@@ -260,9 +181,62 @@ def perform_rag(query):
 
     return llm_response.choices[0].message.content
 
-response = perform_rag("How is the javascript parser used?")
+# response = perform_rag("How is the javascript parser used?")
 
-print(response)
+# print(response)
 
 
 
+
+
+def perform_rag_with_namespace(query, namespace):
+    """
+    Performs retrieval-augmented generation (RAG) using Pinecone and OpenAI, allowing namespace specification.
+
+    Args:
+        query (str): The query to be answered.
+        namespace (str): The Pinecone namespace to query.
+
+    Returns:
+        str: The generated response from the language model.
+    """
+    # Generate query embeddings
+    raw_query_embedding = get_huggingface_embeddings(query)
+
+    try:
+        # Query the Pinecone index using the specified namespace
+        top_matches = pinecone_index.query(
+            vector=raw_query_embedding.tolist(),
+            top_k=5,  # Retrieve top 5 results
+            include_metadata=True,
+            namespace=namespace  # Specify the namespace
+        )
+    except Exception as e:
+        raise ValueError(f"Error querying Pinecone: {e}")
+
+    # Extract context from matches
+    contexts = [item['metadata']['text'] for item in top_matches['matches']]
+
+    # Construct the augmented query with context
+    augmented_query = "<CONTEXT>\n" + "\n\n-------\n\n".join(contexts[:10]) + "\n-------\n</CONTEXT>\n\nMY QUESTION:\n" + query
+
+    # Define the system prompt
+    system_prompt = f"""You are an Expert Senior Software Engineer, specializing in TypeScript.
+    Answer any questions I have about the codebase, based on the code provided. Always consider all of the context provided when forming a response and give as many code examples as possible in your response.
+    DO NOT HALLUCINATE. Lets think about this step by step, and answer it step by step.
+    """
+
+    # Query the language model
+    try:
+        llm_response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": augmented_query}
+            ]
+        )
+    except Exception as e:
+        raise ValueError(f"Error querying language model: {e}")
+
+    # Return the response content
+    return llm_response.choices[0].message.content
